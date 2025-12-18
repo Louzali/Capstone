@@ -58,7 +58,6 @@ class ItineraryResponse(BaseModel):
     destination: str
     days: List[ItineraryDay]
     total_est_cost: float
-    notes: List[str]
 
 
 class StayRecommendation(BaseModel):
@@ -72,6 +71,7 @@ class StaysResponse(BaseModel):
     destination: str
     nights: int
     currency_note: str
+    booking_search_url: str
     recommendations: List[StayRecommendation]
 
 
@@ -213,11 +213,6 @@ def generate_itinerary(trip: TripInput) -> ItineraryResponse:
         "balanced": 40,
     }.get(style, 40)
 
-    notes = [
-        "MVP itinerary is heuristic (no live attraction data yet).",
-        "Add maps + opening hours later for a production version.",
-    ]
-
     days: List[ItineraryDay] = []
     for i in range(n_days):
         d = start + dt.timedelta(days=i)
@@ -231,7 +226,7 @@ def generate_itinerary(trip: TripInput) -> ItineraryResponse:
             est_cost=float(round(est, 2)),
         ))
     total = round(sum(x.est_cost for x in days), 2)
-    return ItineraryResponse(destination=trip.destination, days=days, total_est_cost=total, notes=notes)
+    return ItineraryResponse(destination=trip.destination, days=days, total_est_cost=total)
 
 
 def fetch_listings(trip: TripInput) -> List[StayListing]:
@@ -262,6 +257,24 @@ def fetch_listings(trip: TripInput) -> List[StayListing]:
     return combined if combined else MOCK_LISTINGS
 
 
+
+def booking_search_url(destination: str, checkin: str, checkout: str, adults: int) -> str:
+    """
+    Builds a Booking.com search URL you can use immediately (no API required).
+    If your website uses affiliate tracking, replace this with your affiliate deep-link format.
+    """
+    import urllib.parse as up
+    params = {
+        "ss": destination,
+        "checkin": checkin,
+        "checkout": checkout,
+        "group_adults": str(adults),
+        "no_rooms": "1",
+        "group_children": "0",
+    }
+    return "https://www.booking.com/searchresults.html?" + up.urlencode(params)
+
+
 def recommend_stays(trip: TripInput) -> StaysResponse:
     n = nights_between(trip.start_date, trip.end_date)
     listings = [l for l in fetch_listings(trip) if dealbreaker_ok(l.room_type, trip.dealbreakers)]
@@ -284,7 +297,8 @@ def recommend_stays(trip: TripInput) -> StaysResponse:
     return StaysResponse(
         destination=trip.destination,
         nights=n,
-        currency_note="Set keys in .env to use Booking Demand API / Airbnb partner stub; otherwise mock data.",
+        currency_note="Browse real Booking.com results via the link below (no API required).",
+        booking_search_url=booking_search_url(trip.destination, trip.start_date, trip.end_date, trip.travelers),
         recommendations=recs,
     )
 

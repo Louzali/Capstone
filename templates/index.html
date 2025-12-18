@@ -79,11 +79,7 @@
         <div id="stays" class="muted">Recommendations will appear here.</div>
       </section>
     </section>
-
-    <footer class="footer">
-      <p><strong>API note:</strong> Booking Demand API requires affiliate/partner credentials. Airbnb inventory search typically requires approved partner access. This MVP falls back to mock data.</p>
-    </footer>
-  </main>
+</main>
 
   <script>
     function parseCSV(value) {
@@ -124,10 +120,6 @@
       el.innerHTML = `
         <div class="summary">Total est (activities/food/transport): <strong>${money(data.total_est_cost)}</strong></div>
         ${rows}
-        <div class="notes">
-          <div class="label">Notes</div>
-          <ul>${data.notes.map(n => `<li>${n}</li>`).join("")}</ul>
-        </div>
       `;
     }
 
@@ -158,6 +150,9 @@
 
       el.innerHTML = `
         <div class="summary">${data.nights} night(s). <span class="muted">${data.currency_note}</span></div>
+        <div class="ctaRow">
+          <a class="cta" href="${data.booking_search_url}" target="_blank" rel="noopener">Open Booking.com results</a>
+        </div>
         ${cards || "<div class='muted'>No matches found.</div>"}
       `;
     }
