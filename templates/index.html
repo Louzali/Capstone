@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI Trip Planner MVP – Ifrane</title>
+  <link rel="stylesheet" href="/static/app.css" />
+</head>
+<body>
+  <main class="container">
+    <header class="header">
+      <h1>AI Trip Planner MVP – Ifrane</h1>
+      <p class="subtitle">Itinerary + stay recommendations (mock data; API-ready)</p>
+    </header>
+
+    <section class="card">
+      <h2>Trip details</h2>
+      <form id="tripForm">
+        <div class="grid">
+          <label>
+            Destination
+            <input name="destination" value="Ifrane, Morocco" required />
+          </label>
+          <label>
+            Travelers
+            <input name="travelers" type="number" min="1" value="2" required />
+          </label>
+          <label>
+            Start date
+            <input name="start_date" type="date" value="2026-01-10" required />
+          </label>
+          <label>
+            End date
+            <input name="end_date" type="date" value="2026-01-13" required />
+          </label>
+          <label>
+            Nightly budget
+            <input name="nightly_budget" type="number" min="10" value="80" required />
+          </label>
+          <label>
+            Style
+            <select name="style">
+              <option value="balanced" selected>Balanced</option>
+              <option value="relaxed">Relaxed</option>
+              <option value="packed">Packed</option>
+              <option value="foodie">Foodie</option>
+              <option value="culture">Culture</option>
+              <option value="nightlife">Nightlife</option>
+            </select>
+          </label>
+          <label>
+            Must-haves (comma-separated)
+            <input name="must_haves" placeholder="wifi, kitchen, heating" value="wifi, heating" />
+          </label>
+          <label>
+            Dealbreakers (comma-separated)
+            <input name="dealbreakers" placeholder="shared_room, private_room" value="shared_room" />
+          </label>
+          <label>
+            Preferred areas (comma-separated)
+            <input name="prefer_areas" placeholder="City Center, Outskirts" value="City Center" />
+          </label>
+        </div>
+
+        <div class="actions">
+          <button type="submit">Generate plan + stays</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="split">
+      <section class="card">
+        <h2>Itinerary</h2>
+        <div id="itinerary" class="muted">Fill the form and click “Generate”.</div>
+      </section>
+
+      <section class="card">
+        <h2>Stay recommendations</h2>
+        <div id="stays" class="muted">Recommendations will appear here.</div>
+      </section>
+    </section>
+
+    <footer class="footer">
+      <p><strong>API note:</strong> Booking Demand API requires affiliate/partner credentials. Airbnb inventory search typically requires approved partner access. This MVP falls back to mock data.</p>
+    </footer>
+  </main>
+
+  <script>
+    function parseCSV(value) {
+      if (!value) return [];
+      return value.split(",").map(s => s.trim()).filter(Boolean);
+    }
+    function formToPayload(form) {
+      const fd = new FormData(form);
+      return {
+        destination: fd.get("destination"),
+        start_date: fd.get("start_date"),
+        end_date: fd.get("end_date"),
+        travelers: Number(fd.get("travelers")),
+        nightly_budget: Number(fd.get("nightly_budget")),
+        style: fd.get("style"),
+        must_haves: parseCSV(fd.get("must_haves")),
+        dealbreakers: parseCSV(fd.get("dealbreakers")),
+        prefer_areas: parseCSV(fd.get("prefer_areas")),
+      };
+    }
+    function money(x) { return (Math.round(x * 100) / 100).toFixed(2); }
+
+    function renderItinerary(data) {
+      const el = document.getElementById("itinerary");
+      const rows = data.days.map(d => `
+        <div class="day">
+          <div class="dayHead">
+            <div class="dayDate">${d.date}</div>
+            <div class="pill">Est: ${money(d.est_cost)}</div>
+          </div>
+          <ul>
+            <li><strong>Morning:</strong> ${d.morning}</li>
+            <li><strong>Afternoon:</strong> ${d.afternoon}</li>
+            <li><strong>Evening:</strong> ${d.evening}</li>
+          </ul>
+        </div>
+      `).join("");
+      el.innerHTML = `
+        <div class="summary">Total est (activities/food/transport): <strong>${money(data.total_est_cost)}</strong></div>
+        ${rows}
+        <div class="notes">
+          <div class="label">Notes</div>
+          <ul>${data.notes.map(n => `<li>${n}</li>`).join("")}</ul>
+        </div>
+      `;
+    }
+
+    function renderStays(data) {
+      const el = document.getElementById("stays");
+      const cards = data.recommendations.slice(0, 8).map(r => {
+        const l = r.listing;
+        return `
+          <article class="listing">
+            <div class="listingHead">
+              <div>
+                <div class="platform">${l.platform.toUpperCase()}</div>
+                <div class="name">${l.name}</div>
+                <div class="meta">${l.area} • ~${l.distance_km_to_center.toFixed(1)} km to center • ${l.reviews} reviews</div>
+              </div>
+              <div class="right">
+                <div class="score">Score ${r.match_score}</div>
+                <div class="price">${money(l.nightly_price)}/night</div>
+                <div class="total">~${money(r.est_total_price)} total</div>
+              </div>
+            </div>
+            <div class="amenities">${l.amenities.map(a => `<span class="pill">${a}</span>`).join("")}</div>
+            <ul class="why">${r.why.map(w => `<li>${w}</li>`).join("")}</ul>
+            <a class="link" href="${l.url}" target="_blank" rel="noopener">Open listing</a>
+          </article>
+        `;
+      }).join("");
+
+      el.innerHTML = `
+        <div class="summary">${data.nights} night(s). <span class="muted">${data.currency_note}</span></div>
+        ${cards || "<div class='muted'>No matches found.</div>"}
+      `;
+    }
+
+    document.getElementById("tripForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const payload = formToPayload(e.target);
+      document.getElementById("itinerary").innerHTML = "<div class='muted'>Generating itinerary…</div>";
+      document.getElementById("stays").innerHTML = "<div class='muted'>Finding stays…</div>";
+      const [planRes, staysRes] = await Promise.all([
+        fetch("/api/plan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }),
+        fetch("/api/stays", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }),
+      ]);
+      renderItinerary(await planRes.json());
+      renderStays(await staysRes.json());
+    });
+  </script>
+</body>
+</html>
